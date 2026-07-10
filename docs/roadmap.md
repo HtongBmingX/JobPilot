@@ -1,57 +1,39 @@
-Phase1
+# JobPilot 项目开发进度
 
-✅ FastAPI
+## 已完成
 
-✅ Config
+- [x] FastAPI 项目初始化
+- [x] 配置管理（Settings）
+- [x] 日志系统（Logger）
+- [x] LLMService 封装
+- [x] PromptManager 模块
 
-⬜ LLMService
+---
 
-⬜ Logger
+## 开发中
 
-⬜ Exception
+- [ ] Resume Analysis Service
 
-----------------
+---
 
-Phase2
+## 后续计划
 
-⬜ Tool
+### AI 核心能力
 
-⬜ Resume Parser
+- [ ] ReAct Agent
+- [ ] Agent Memory
+- [ ] Tool Calling
+- [ ] Workflow
 
-⬜ JD Parser
+### 业务能力
 
-----------------
+- [ ] 简历解析
+- [ ] JD 解析
+- [ ] 简历评分
+- [ ] 岗位匹配
 
-Phase3
+### 模型能力
 
-⬜ LangGraph
+- [ ] 接入 Ollama 本地模型
+- [ ] 支持多模型切换
 
-⬜ Planner
-
-⬜ State
-
-----------------
-
-Phase4
-
-⬜ RAG
-
-----------------
-
-Phase5
-
-⬜ Memory
-
-----------------
-
-Phase6
-
-⬜ Vue
-
-----------------
-
-Phase7
-
-⬜ Docker
-
-⬜ GitHub Action

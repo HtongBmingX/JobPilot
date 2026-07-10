@@ -14,6 +14,6 @@ An AI Agent for Intelligent Job Hunting.
 
 - [x] Project Initialization
 - [x] Configuration Center
-- [ ] LLM Service
+- [x] LLM Service
 - [ ] Agent
 - [ ] Tool Calling
