@@ -1,8 +1,10 @@
-from http.client import responses
-
 from openai import OpenAI
 
 from backend.app.core.config import settings
+import time
+from backend.app.schemas.chat import ChatResult
+
+
 
 
 class LLMService:
@@ -20,8 +22,9 @@ class LLMService:
             self,
             system_prompt: str,
             user_prompt: str,
-    ) -> str:  # Call the LLM with system and user prompts.The caller only provides business semantics instead of constructing the OpenAI messages format directly.
+    ) -> ChatResult:  # Call the LLM with system and user prompts.The caller only provides business semantics instead of constructing the OpenAI messages format directly.
         try:
+            start = time.perf_counter()
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
@@ -35,9 +38,22 @@ class LLMService:
                     }
                 ]
             )
+            elapsed = round(
+                time.perf_counter() - start,
+                3,
+            )
 
-            return response.choices[0].message.content
+            usage = response.usage
+
+            return ChatResult(
+                content=response.choices[0].message.content,
+                model=response.model,
+                elapsed=elapsed,
+                prompt_tokens=usage.prompt_tokens if usage else 0,
+                completion_tokens=usage.completion_tokens if usage else 0,
+                total_tokens=usage.total_tokens if usage else 0,
+            )
 
         except Exception as e:
             print(f"[LLMService] API call failed: {e}")
-        raise  # 保留原始异常栈，用raise会重新抛出异常，错误信息不直观
+            raise  # 保留原始异常栈，用raise会重新抛出异常，错误信息不直观
