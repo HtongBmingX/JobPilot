@@ -1,126 +1,147 @@
-# 当前项目结构（v0.6.0）
+# 项目结构（v0.9.3）
 
-> 最后更新：2026-07-23
+> 最后更新：2026-08-17
 
 ## 后端
 
+```
 backend/
-│
-├── main.py                      # FastAPI 入口：6 个端点（手写版同步+流式 / LangChain版同步+流式 / upload / health），CORS + 限流 + 异常处理
-├── requirements.txt             # 依赖（含 LangChain / Redis / hiredis）
-├── .env                         # 环境变量（API Key + Redis 配置）
-├── .env.example                 # 环境变量模板（含 Redis 可选配置）
+├── main.py                      # FastAPI 入口：20 个端点（auth/agent/applications/resumes/profile/upload/status）
+├── requirements.txt             # 依赖（FastAPI/Redis/LangChain/SQLAlchemy/alembic/pytest）
+├── .env.example                 # 环境变量模板（DeepSeek + DashScope key）
+├── alembic.ini                  # 数据库迁移配置
+├── alembic/                     # 迁移脚本（baseline + resumes/user_profiles）
+├── pytest.ini                   # 测试配置
 │
 ├── app/
 │   ├── core/
-│   │   ├── config.py            # Pydantic Settings 配置中心（含 LLM 超时/重试配置）
-│   │   ├── logger.py            # 企业级日志（控制台 + 文件）
-│   │   ├── exceptions.py        # 自定义异常体系（JobPilotError 基类 + 5 个子类，各带 HTTP status_code）
-│   │   ├── error_handlers.py    # 全局异常处理器（在 CORS 之后注册，不拦截 OPTIONS）
-│   │   ├── redis_client.py      # Redis 客户端封装（连接池单例 + 懒加载 + 优雅降级）
-│   │   └── rate_limit.py        # 固定窗口限流（INCR + EXPIRE），FastAPI Depends 注入
+│   │   ├── config.py            # Pydantic Settings（LLM + Redis + DashScope 配置）
+│   │   ├── database.py          # SQLAlchemy 引擎 + Session 工厂
+│   │   ├── auth.py              # JWT + bcrypt 鉴权（access/refresh token）
+│   │   ├── logger.py            # 日志（控制台 + 文件）
+│   │   ├── exceptions.py        # 自定义异常体系
+│   │   ├── error_handlers.py    # 全局异常处理器
+│   │   ├── redis_client.py      # Redis 连接池单例 + 优雅降级
+│   │   └── rate_limit.py        # 固定窗口限流
 │   │
-│   ├── prompts/
-│   │   ├── prompt_manager.py    # 模板加载 + 缓存 + 渲染（{{变量}} 替换）
-│   │   └── templates/
-│   │       ├── system.md        # System Prompt（资深 HR 角色）
-│   │       ├── planner.md       # Planner 决策指令（精简版——状态机已迁移到代码）
-│   │       ├── synthesize.md    # 最终总结指令（含对话历史占位符）
-│   │       ├── resume_analyze.md
-│   │       ├── jd_analyze.md
-│   │       ├── match_analyze.md
-│   │       └── interview.md     # 面试建议模板（待实现）
-│   │
-│   ├── schemas/
-│   │   ├── chat.py              # ChatResult（content, model, elapsed, tokens）
-│   │   ├── plan.py              # Plan（thought, action, action_input）
-│   │   ├── resume.py            # ResumeAnalyzeRequest
-│   │   ├── jd.py                # JDAnalyzeRequest
-│   │   └── match.py             # MatchRequest
-│   │
-│   ├── services/
-│   │   ├── base_service.py      # 公共 _chat() 封装（PromptManager + LLMService）
-│   │   ├── llm_service.py       # DeepSeek 调用（chat + chat_stream，重试+退避）
-│   │   ├── resume_service.py    # analyze()
-│   │   ├── jd_service.py        # analyze()
-│   │   └── match_service.py     # analyze()
+│   ├── agent/
+│   │   ├── jobpilot_agent.py    # 手写 ReAct 循环主体（execute + execute_stream）
+│   │   ├── agent_state.py       # 代码级状态机 + 意图关键词检测
+│   │   └── planner.py           # LLM 决策器（从 allowed 选择 + 提取参数）
 │   │
 │   ├── tools/
 │   │   ├── base_tool.py         # BaseTool 抽象类
-│   │   ├── registry.py          # ToolRegistry 注册中心（register/get/exists/build_prompt）
-│   │   ├── resume_tool.py       # 简历分析 Tool
-│   │   ├── jd_tool.py           # JD 分析 Tool
-│   │   ├── match_tool.py        # 岗位匹配 Tool
-│   │   └── ingest_tool.py       # PDF/DOCX 解析（/upload 直接调用，不注册）
+│   │   ├── registry.py          # ToolRegistry 注册中心
+│   │   ├── resume_tool.py       # 简历分析
+│   │   ├── jd_tool.py           # JD 分析
+│   │   ├── match_tool.py        # 岗位匹配
+│   │   ├── interview_tool.py    # 面试模拟（三模式 + 多轮）
+│   │   ├── search_tool.py       # RAG 知识库检索
+│   │   └── ingest_tool.py       # PDF/DOCX 解析（/upload 直接调用）
 │   │
 │   ├── memory/
-│   │   ├── session_memory.py    # 单会话数据（业务记忆 + 对话记忆 + to_dict/from_dict 序列化）
-│   │   ├── token_budget.py      # Token 预算控制器（近期优先截断策略）
-│   │   ├── redis_store.py       # Redis 版会话存储（JSON 序列化，24h TTL 自动过期）
-│   │   └── memory_manager.py    # 多会话管理（Redis 优先 + 内存 fallback 双路径）
+│   │   ├── session_memory.py    # 会话数据（业务记忆 + 对话 + 画像 + 摘要 + 序列化）
+│   │   ├── memory_manager.py    # 多会话管理（Redis 优先 + 内存 fallback）
+│   │   ├── redis_store.py       # Redis 会话存储（24h TTL）
+│   │   ├── token_budget.py      # Token 预算（近期优先截断 + 摘要压缩）
+│   │   └── conversation_summarizer.py  # LLM 增量摘要
 │   │
-│   ├── agent/
-│   │   ├── planner.py           # LLM 决策器（精简版——规则由 AgentStateMachine 负责）
-│   │   ├── agent_state.py       # 代码级状态机（AgentState + AgentStateMachine + 关键词检测）
-│   │   └── jobpilot_agent.py    # 手写 ReAct 循环主体（execute + execute_stream + 状态机集成）
+│   ├── rag/
+│   │   ├── rag_pipeline.py      # RAG 统一入口
+│   │   ├── embedding.py         # 千问 text-embedding-v3（query/document 非对称）
+│   │   ├── vector_store.py      # 纯 Python 向量存储（余弦相似度 + JSON 持久化）
+│   │   ├── hybrid_searcher.py   # BM25 + 向量 + RRF 融合
+│   │   ├── knowledge_docs.py    # 知识库数据（23 篇 / 7 方向）
+│   │   └── build_knowledge_base.py  # 知识库构建脚本
 │   │
-│   ├── langchain_agent/         # LangChain 版 Agent（Phase 4）
-│   │   ├── llm.py               # ChatOpenAI 包装器（chat_sync + chat_stream）
-│   │   ├── tools.py             # @tool 装饰器的三个工具函数
-│   │   └── agent.py             # LangChainAgent（create_react_agent + InMemorySaver）
+│   ├── models/                  # SQLAlchemy ORM
+│   │   ├── user.py              # 用户
+│   │   ├── application.py       # 投递记录
+│   │   ├── resume.py            # 简历库
+│   │   └── user_profile.py      # 用户画像
 │   │
-│   └── logs/                    # 日志输出目录
+│   ├── repositories/            # Repository 模式
+│   │   ├── user_repo.py
+│   │   ├── application_repo.py
+│   │   ├── resume_repo.py
+│   │   └── user_profile_repo.py
+│   │
+│   ├── schemas/                 # Pydantic 请求/响应
+│   │   ├── user.py / application.py / resume_library.py / user_profile.py
+│   │   ├── chat.py / plan.py / match.py / status.py 等
+│   │
+│   ├── services/                # 业务逻辑层
+│   │   ├── llm_service.py       # DeepSeek 调用（chat + chat_stream + 重试）
+│   │   ├── base_service.py      # 公共 _chat 封装
+│   │   ├── resume_service.py / jd_service.py / match_service.py
+│   │   └── interview_service.py
+│   │
+│   ├── prompts/
+│   │   ├── prompt_manager.py    # 模板加载 + 缓存 + 渲染
+│   │   └── templates/           # 9 个 prompt 模板
+│   │
+│   ├── langchain_agent/         # LangChain 版（对比用）
+│   │   ├── agent.py / llm.py / tools.py
+│   │
+│   ├── langgraph_agent/         # LangGraph 状态定义（预留）
+│   │   └── state.py
+│   │
+│   └── evaluation/              # 评测体系
+│       ├── runner.py            # 评测执行器（基础 + RAG 两套）
+│       ├── test_cases.py        # 基础能力用例
+│       ├── rag_test_cases.py    # RAG 知识库问答用例
+│       ├── deterministic_metrics.py  # 确定性指标（触发率/命中率/标注率）
+│       └── metrics/             # faithfulness/relevancy/recall（LLM 判定版）
 │
-│
-└── tests/
-    ├── test_agent_loop.py       # 诊断测试（mock 隔离 Agent 循环 + Planner 决策）
-    ├── test_agent.py            # Agent 集成测试
-    ├── test_planner.py          # Planner 独立测试
-    ├── test_plan.py             # Plan schema 测试
-    ├── test_prompt_manager.py   # PromptManager 测试
-    ├── test_resume_service.py   # ResumeService 测试
-    ├── test_jd_service.py       # JDService 测试
-    ├── test_match_service.py    # MatchService 测试
-    ├── test_llm_service.py      # LLMService 测试
-    ├── test_llm_retry.py        # LLM 重试逻辑测试（mock）
-    ├── test_memory_manager.py   # MemoryManager 测试
-    ├── test_session_memory.py   # SessionMemory 测试
-    └── test_tools.py            # Tool 注册 + 提示词构建测试
+└── tests/                       # 47 个测试
+    ├── test_agent_state.py      # 状态机路由 + 关键词检测
+    ├── test_token_budget.py     # Token 预算 + 截断
+    ├── test_session_memory_serialization.py  # 序列化 + 兼容
+    ├── test_rag_search.py       # 向量存储 + BM25 + RRF
+    └── ... 其他测试
+```
 
----
+## 前端
 
-## 前端（v1.0 UI）
-
+```
 frontend/
-│
-├── package.json                 # 依赖：vue, marked, @vitejs/plugin-vue, vite
-├── vite.config.js               # vue 插件 + dev proxy（/agent → :8000, /upload → :8000）
-├── index.html                   # SPA 挂载点 + 全局 CSS reset
-├── dist/                        # 生产构建产物
+├── package.json                 # vue + marked + vitest
+├── vite.config.js               # dev proxy（7 条代理到 :8000）
+├── vitest.config.js             # 测试配置
+├── index.html                   # SPA 挂载点
+├── nginx.conf                   # Nginx 反代（SSE 支持）
+├── Dockerfile                   # 多阶段构建
 │
 └── src/
-    ├── main.js                  # 创建 + 挂载 Vue 应用
-    ├── App.vue                  # 根组件（编排层：Chat 区 + Input 区 + 状态管理）
-    ├── composables/
-    │   └── useAgent.js          # Agent 交互 Composable（状态 + uploadFile + sendMessage + SSE 消费）
-    ├── components/
-    │   ├── ChatBubble.vue       # 单条对话气泡（user 蓝色靠右 / assistant 白色靠左 + Markdown 渲染）
-    │   ├── ThinkChain.vue       # Agent 思考链可视化（⏳ 正在分析 → ✅ 已完成）
-    │   └── InputPanel.vue       # 输入面板（文件上传 + 简历/JD 编辑 + 问题输入 + 发送按钮）
+    ├── main.js                  # 入口（import tokens.css）
+    ├── App.vue                  # 根组件（视图切换 + 编排）
+    ├── styles/tokens.css        # 设计 Token（颜色/间距/字号/圆角变量）
+    ├── composables/             # 6 个 composable
+    │   ├── useAgent.js          # 多会话 + SSE + 鉴权
+    │   ├── useApplications.js / useResumes.js / useProfile.js
+    │   ├── useStatus.js / useToast.js
+    ├── components/              # 11 个组件
+    │   ├── ChatBubble.vue / ThinkChain.vue / InputPanel.vue
+    │   ├── ConversationSidebar.vue / JobBoard.vue / JobCard.vue
+    │   ├── ApplicationDetailModal.vue / ProfileModal.vue
+    │   ├── StatusBar.vue / ToastContainer.vue / AboutView.vue
     └── utils/
-        └── markdown.js          # Markdown 渲染（marked.parse + XSS sanitize）
-
----
+        ├── application.js       # 纯函数（分数解析/色阶/日期）
+        ├── markdown.js          # Markdown + XSS 清洗
+        └── __tests__/           # 前端测试
+```
 
 ## 基础设施
 
-├── docker-compose.yml           # Redis 7 Alpine（AOF 持久化 + 数据卷）
-├── logs/                        # 根级日志目录
-└── docs/                        # 开发文档
-    ├── development_framework.md # 完整开发路线图（6 Phase / 20+ Steps）
+```
+docker-compose.yml               # 三服务（redis + backend + frontend）
+backend/Dockerfile               # 后端多阶段构建
+frontend/Dockerfile              # 前端 node + nginx
+docs/                            # 文档
     ├── architecture.md          # 架构设计
-    ├── api_design.md            # API 设计文档
+    ├── api_design.md            # API 文档
     ├── project_structure.md     # 本文档
-    ├── changelog.md             # 变更日志（v0.1.0 → v0.6.0）
-    ├── development_log.md       # 开发日志（Day 1-16，学习记录）
-    └── roadmap.md               # 技术蓝图 + 演进路线
+    ├── roadmap.md               # 技术蓝图（最新）
+    ├── changelog.md             # 变更日志
+    └── development_log.md       # 开发日志（Day 1-32）
+```
