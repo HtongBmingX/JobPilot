@@ -14,6 +14,8 @@ venv/
 # Environment（含真实 API Key，绝不能上传）
 .env
 .env.*
+# 但保留模板文件（不含真实 key，供他人 clone 后填 key）
+!.env.example
 
 # Logs
 *.log
