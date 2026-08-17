@@ -1,9 +1,11 @@
 import logging
 from pathlib import Path
 
-# 创建日志目录
-log_dir = Path("logs")
-log_dir.mkdir(exist_ok=True)
+# 锚定日志目录到 backend/logs/，避免因启动位置(CWD)不同导致日志散落
+# logger.py 位于 backend/app/core/，故 backend 目录为 parents[2]
+BACKEND_DIR = Path(__file__).resolve().parents[2]
+log_dir = BACKEND_DIR / "logs"
+log_dir.mkdir(parents=True, exist_ok=True)
 
 # 创建 Logger
 logger = logging.getLogger("JobPilot")

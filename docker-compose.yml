@@ -1,0 +1,62 @@
+services:
+  # ===================================================================
+  # Redis — 会话存储 + 限流计数器
+  # ===================================================================
+  redis:
+    image: redis:7-alpine
+    container_name: jobpilot-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+    # 健康检查：每隔 10 秒 ping 一次 Redis，超时 3 秒标记不健康
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # ===================================================================
+  # 后端 FastAPI — Python + Uvicorn
+  # ===================================================================
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: jobpilot-backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - backend/.env
+    environment:
+      # 覆盖 Redis 连接地址 — 容器内用服务名而非 localhost
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    volumes:
+      # SQLite 数据库持久化 — 容器重建后用户数据不丢失
+      - sqlite_data:/app/backend/data
+    depends_on:
+      redis:
+        condition: service_healthy  # 等 Redis 健康后再启动
+    restart: unless-stopped
+
+  # ===================================================================
+  # 前端 Nginx — Vue SPA 静态文件 + API 反向代理
+  # ===================================================================
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    container_name: jobpilot-frontend
+    ports:
+      - "80:80"       # 生产端口
+      - "5173:80"     # 兼容原来的开发端口，保持前端配置一致
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  redis_data:
+  sqlite_data:

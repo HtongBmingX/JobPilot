@@ -10,6 +10,6 @@ class MatchService(BaseService):
     ) -> str:
         return self._chat(
             "match_analyze",
-            resume_analyze = request.resume_analysis,
-            jd_analyze = request.jd_analysis,
+            resume_analysis=request.resume_analysis,
+            jd_analysis=request.jd_analysis,
         )

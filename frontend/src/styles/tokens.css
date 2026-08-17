@@ -1,0 +1,95 @@
+/*
+ * JobPilot 设计 Token 系统
+ *
+ * 集中定义颜色、间距、字号、圆角、阴影，组件通过 var(--xxx) 引用。
+ * 这是"系统性打磨"的地基——之前所有颜色都是散落在组件里的十六进制硬编码，
+ * 导致同一语义出现 4-5 种近似值（如浅蓝底有 4 种、浅灰背景有 5 种）。
+ */
+
+:root {
+  color-scheme: light;
+
+  /* ============ 主色（蓝色） ============ */
+  --color-primary: #2563eb;
+  --color-primary-hover: #1d4ed8;
+  --color-primary-active: #1e40af;
+  --color-primary-soft: #eff6ff;        /* 主色浅底（统一原来 4 种蓝底） */
+  --color-primary-softer: #eef2ff;      /* 更浅的底（头像/图标用） */
+  --color-primary-border: #bfdbfe;      /* 主色浅边框 */
+
+  /* ============ 中性灰阶 ============ */
+  --gray-50:  #f9fafb;
+  --gray-100: #f6f7f9;                  /* 页面主背景（统一原来 5 种近白） */
+  --gray-150: #f3f4f6;                  /* 次级背景（hover、chip 底） */
+  --gray-200: #eef0f3;                  /* 边框浅 */
+  --gray-300: #e5e7eb;                  /* 边框 */
+  --gray-400: #d1d5db;                  /* 边框深/禁用 */
+  --gray-500: #9ca3af;                  /* 占位文字 */
+  --gray-600: #6b7280;                  /* 次要文字 */
+  --gray-700: #4b5563;                  /* 正文 */
+  --gray-800: #374151;                  /* 强调文字 */
+  --gray-900: #1f2937;                  /* 标题 */
+  --gray-950: #111827;                  /* 最强强调 */
+
+  /* ============ 状态色 ============ */
+  --color-success: #10b981;
+  --color-success-soft: #ecfdf5;
+  --color-success-text: #059669;
+  --color-warning: #f59e0b;
+  --color-warning-soft: #fffbeb;
+  --color-warning-text: #d97706;
+  --color-danger: #ef4444;
+  --color-danger-hover: #dc2626;
+  --color-danger-soft: #fef2f2;
+  --color-danger-border: #fecaca;
+  --color-danger-text: #b91c1c;
+  --color-info: #3b82f6;
+  --color-info-soft: #eff6ff;
+  --color-info-text: #1e40af;
+
+  /* 阶段色（投递看板五个状态） */
+  --stage-applied: #f59e0b;
+  --stage-screening: #3b82f6;
+  --stage-interviewing: #8b5cf6;
+  --stage-offered: #10b981;
+  --stage-rejected: #ef4444;
+
+  /* ============ 间距（4px 网格） ============ */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* ============ 圆角 ============ */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-2xl: 14px;
+  --radius-full: 9999px;
+
+  /* ============ 字号 ============ */
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 13px;
+  --text-md: 14px;
+  --text-lg: 15px;
+  --text-xl: 17px;
+  --text-2xl: 20px;
+  --text-3xl: 22px;
+
+  /* ============ 阴影 ============ */
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.04);
+  --shadow-md: 0 4px 12px rgba(16, 24, 40, 0.08);
+  --shadow-lg: 0 20px 50px rgba(0, 0, 0, 0.18);
+
+  /* ============ 焦点环 ============ */
+  --focus-ring: 0 0 0 3px rgba(37, 99, 235, 0.12);
+
+  /* ============ 过渡 ============ */
+  --transition-fast: 0.12s ease;
+  --transition-normal: 0.15s ease;
+}

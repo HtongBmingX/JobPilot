@@ -11,11 +11,14 @@ venv/
 .idea/
 .vscode/
 
-# Environment
+# Environment（含真实 API Key，绝不能上传）
 .env
+.env.*
 
 # Logs
 *.log
+logs/
+*.pytest_cache/
 
 # Python cache
 .pytest_cache/
@@ -23,3 +26,23 @@ venv/
 # OS
 .DS_Store
 Thumbs.db
+
+# Database
+backend/data/
+*.db
+
+# Node（前端）
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# RAG 数据（向量库持久化文件，可重建）
+*.json.bak
+rag_store.json
+
+# 评测报告
+evaluation_report.md
+rag_evaluation_report.md
+
+# Cowork 会话记忆（个人工作记录，不含代码）
+.workbuddy/

@@ -8,9 +8,9 @@ class BaseService:
     封装 PromptManager、LLMService 和通用聊天逻辑。
     """
 
-    def __init__(self):
+    def __init__(self, llm: LLMService | None = None):
         self.prompt_manager = PromptManager()
-        self.llm = LLMService()
+        self.llm = llm or LLMService()  # 允许注入外部的 LLMService 实例
 
     def _chat(self, prompt_name: str, **kwargs) -> str:
         """

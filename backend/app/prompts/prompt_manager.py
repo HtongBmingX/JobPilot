@@ -62,8 +62,10 @@ class PromptManager:
 
         prompt = self.get_prompt(name)
 
-        for key, value in kwargs.items():
-            prompt = prompt.replace(f"{{{{{key}}}}}",str(value))
+        # 按 key 长度降序排列，避免短键替换破坏长键的占位符
+        # 例如 "resume" 的替换不应破坏 "resume_analysis" 的占位符
+        for key, value in sorted(kwargs.items(), key=lambda kv: -len(kv[0])):
+            prompt = prompt.replace(f"{{{{{key}}}}}", str(value))
 
         return prompt
 

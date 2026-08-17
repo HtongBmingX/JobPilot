@@ -1,0 +1,13 @@
+# 不把 node_modules、.venv、构建产物、虚拟环境打入镜像
+**/node_modules
+**/.venv
+**/venv
+**/.env
+**/__pycache__
+**/*.pyc
+**/.git
+**/logs
+**/dist
+.git
+*.log
+.DS_Store
