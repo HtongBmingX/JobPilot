@@ -1,35 +1,32 @@
+"""
+JDService 单测（断言式，注入 mock LLM，不打真实 API）
+"""
+
+from unittest.mock import MagicMock
 from backend.app.schemas.jd import JDAnalyzeRequest
+from backend.app.schemas.chat import ChatResult
 from backend.app.services.jd_service import JDService
 
 
-def test_jd_analyze():
-    service = JDService()
-
-    request = JDAnalyzeRequest(
-        jd="""
-岗位：Python后端开发工程师
-
-岗位职责：
-1. 负责AI平台后端开发；
-2. 使用FastAPI构建RESTful API；
-3. 参与LLM Agent系统开发；
-4. 与前端协作完成业务开发。
-
-任职要求：
-1. 熟悉Python；
-2. 熟悉FastAPI；
-3. 熟悉MySQL；
-4. 熟悉Git；
-5. 有AI项目经验优先。
-"""
+def _mock_llm(content="JD 分析结果"):
+    llm = MagicMock()
+    llm.chat.return_value = ChatResult(
+        content=content, model="mock", elapsed=0.0,
+        prompt_tokens=0, completion_tokens=0, total_tokens=0,
     )
-
-    result = service.analyze(request)
-
-    print("=" * 60)
-    print(result)
-    print("=" * 60)
+    return llm
 
 
-if __name__ == "__main__":
-    test_jd_analyze()
+def test_analyze_returns_llm_content():
+    llm = _mock_llm()
+    service = JDService(llm=llm)
+    result = service.analyze(JDAnalyzeRequest(jd="Python 后端，3 年经验"))
+    assert result == "JD 分析结果"
+
+
+def test_analyze_injects_jd_into_prompt():
+    llm = _mock_llm()
+    service = JDService(llm=llm)
+    service.analyze(JDAnalyzeRequest(jd="要求熟悉 FastAPI"))
+    user_prompt = llm.chat.call_args.kwargs["user_prompt"]
+    assert "要求熟悉 FastAPI" in user_prompt

@@ -1,59 +1,79 @@
+"""
+MemoryManager 单测（断言式，强制走内存 fallback，不碰 Redis）
+
+MemoryManager 优先 Redis、不可用时 fallback 到内存 dict。
+测试里通过替换 _redis_store 为一个「不可用」的假 store，
+强制走内存路径，验证 create/get/save/delete/clear 的核心逻辑，
+且不依赖本机是否装了 Redis。
+"""
+
+from unittest.mock import MagicMock
 from backend.app.memory.memory_manager import MemoryManager
 
 
-def test_memory_manager():
-    manager = MemoryManager()
+def _manager_without_redis() -> MemoryManager:
+    """构造一个 Redis 不可用的 MemoryManager（强制内存 fallback）"""
+    manager = MemoryManager.__new__(MemoryManager)  # 绕过 __init__ 里的真实 Redis 探测
+    manager._sessions = {}
+    manager._redis_store = MagicMock()
+    manager._redis_store.is_available.return_value = False
+    return manager
 
-    print("=" * 50)
-    print("1. 创建两个 Session")
 
-    session1 = manager.create_session("user001")
-    session2 = manager.create_session("user002")
+def test_create_and_get_session():
+    manager = _manager_without_redis()
+    session = manager.create_session("user001")
+    session.resume = "张三的简历"
+    # 再次获取同一 session，应拿到同一对象
+    assert manager.get_session("user001") is session
+    assert manager.get_session("user001").resume == "张三的简历"
 
-    print(session1)
-    print(session2)
 
-    print("=" * 50)
-    print("2. 分别写入数据")
+def test_sessions_are_isolated():
+    manager = _manager_without_redis()
+    s1 = manager.create_session("user001")
+    s2 = manager.create_session("user002")
+    s1.resume = "张三"
+    s2.resume = "李四"
+    assert manager.get_session("user001").resume == "张三"
+    assert manager.get_session("user002").resume == "李四"
 
-    session1.resume = "张三的软件工程简历"
-    session2.resume = "李四的AI算法简历"
 
-    print(session1.resume)
-    print(session2.resume)
+def test_get_missing_session_raises_keyerror():
+    manager = _manager_without_redis()
+    try:
+        manager.get_session("不存在")
+        assert False, "应当抛出 KeyError"
+    except KeyError:
+        pass
 
-    print("=" * 50)
-    print("3. 再次获取 Session")
 
-    s1 = manager.get_session("user001")
-    s2 = manager.get_session("user002")
+def test_save_session_updates():
+    manager = _manager_without_redis()
+    session = manager.create_session("user001")
+    session.resume = "旧简历"
+    manager.save_session("user001", session)
+    session.resume = "新简历"
+    manager.save_session("user001", session)
+    assert manager.get_session("user001").resume == "新简历"
 
-    print(s1.resume)
-    print(s2.resume)
 
-    print("=" * 50)
-    print("4. 删除 user001")
-
+def test_delete_session():
+    manager = _manager_without_redis()
+    manager.create_session("user001")
     manager.delete_session("user001")
-
     try:
         manager.get_session("user001")
-    except KeyError as e:
-        print(e)
+        assert False, "删除后应 KeyError"
+    except KeyError:
+        pass
+    # 删除不存在的 session 不报错
+    manager.delete_session("不存在")
 
-    print("user002 仍然存在：")
-    print(manager.get_session("user002").resume)
 
-    print("=" * 50)
-    print("5. 清空所有 Session")
-
+def test_clear():
+    manager = _manager_without_redis()
+    manager.create_session("user001")
+    manager.create_session("user002")
     manager.clear()
-
-    try:
-        manager.get_session("user002")
-    except KeyError as e:
-        print(e)
-
-
-if __name__ == "__main__":
-    test_memory_manager()
+    assert manager._sessions == {}

@@ -1,55 +1,42 @@
-from backend.app.agent.planner import Planner
-from backend.app.tools.registry import ToolRegistry
-from backend.app.tools.resume_tool import ResumeTool
-from backend.app.tools.jd_tool import JDTool
-from backend.app.tools.match_tool import MatchTool
+"""
+Planner 单测（断言式）
 
-
-def main():
-    registry = ToolRegistry()
-
-    registry.register(ResumeTool())
-    registry.register(JDTool())
-    registry.register(MatchTool())
-
-    planner = Planner()
-
-    query = """
-请分析下面这份简历：
-
-姓名：张三
-
-学历：
-大连理工大学 软件工程专业 本科
-
-专业技能：
-- 熟悉 Python、C++、MySQL
-- 熟悉 FastAPI 开发
-- 熟悉 Git
-- 了解深度学习基础
-- 了解 Agent 开发
-
-项目经历：
-JobPilot 智能求职 Agent
-- 基于 FastAPI 开发后端
-- 实现 PromptManager
-- 实现 Resume/JD/Match 三个 Tool
-- 实现 Planner、Memory、Tool Registry
-- 使用 DeepSeek API 完成 LLM 调用
-
-求职意向：
-AI Agent 开发工程师
+重点测 _extract_json 的容错解析——这是 Planner 的核心难点（LLM 输出格式不稳定）。
+纯静态方法，无需 mock LLM。
 """
 
-    plan = planner.think(
-        query=query,
-        tools=registry.build_prompt(),
-    )
-
-    print("\n===== Planner 输出 =====")
-    print(plan)
-    print("=======================\n")
+from backend.app.agent.planner import Planner
+from backend.app.core.exceptions import LLMResponseError
 
 
-if __name__ == "__main__":
-    main()
+def test_extract_json_direct():
+    data = Planner._extract_json('{"thought": "t", "action": "resume", "action_input": {}}')
+    assert data["action"] == "resume"
+
+
+def test_extract_json_with_markdown_fence():
+    text = '```json\n{"thought": "t", "action": "jd", "action_input": {}}\n```'
+    data = Planner._extract_json(text)
+    assert data["action"] == "jd"
+
+
+def test_extract_json_with_extra_text_around():
+    text = '好的，我的决策是：{"thought": "t", "action": "match", "action_input": {}} 以上就是。'
+    data = Planner._extract_json(text)
+    assert data["action"] == "match"
+
+
+def test_extract_json_empty_raises():
+    try:
+        Planner._extract_json("")
+        assert False, "应当抛出 LLMResponseError"
+    except LLMResponseError:
+        pass
+
+
+def test_extract_json_garbage_raises():
+    try:
+        Planner._extract_json("这不是 JSON")
+        assert False, "应当抛出 LLMResponseError"
+    except LLMResponseError:
+        pass

@@ -139,5 +139,5 @@ def test_format_memory_evolves():
 if __name__ == "__main__":
     test_format_memory_evolves()
     test_agent_progresses_when_planner_is_sane()
-    test_agent_loop_guardrail_on_stuck_planner()
+    test_single_tool_synthesizes_instead_of_looping()
     print("\nALL DIAGNOSTIC TESTS OK")
