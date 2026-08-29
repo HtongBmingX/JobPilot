@@ -28,14 +28,15 @@ AI 驱动的求职助手——从零手写 ReAct Agent，覆盖简历分析、JD
 - 简历分析 / JD 解析 / 人岗匹配
 - 模拟面试（技术 / 行为 / 综合三模式，多轮追问）
 - 知识库问答（后端 / Agent / 前端 / 算法 / 产品 / 测试 / 求职通用）
+- RAG 混合检索（非对称 embedding + BM25 + RRF + 分块/重排分层 + 来源溯源）
 - 多简历管理（按岗位切换版本）
 - 求职画像（Agent 跨对话记住你的目标岗位 / 技术栈）
 - 投递看板（5 阶段跟踪）+ 多会话管理
 
 ### 工程质量
 
-- 47 个后端 pytest + 18 个前端 vitest（覆盖状态机路由、TokenBudget、RAG 检索）
-- 确定性评测体系：检索触发率 100%、命中率 100%、来源标注率 100%
+- 107 个后端 pytest + 18 个前端 vitest（覆盖状态机路由、TokenBudget、RAG 检索、Agent 容错、内存会话）
+- 自建 24 条带标注 RAG 评测集（Recall@k / MRR / NDCG 对比三种检索配置，见 docs/rag_eval.md）
 - JWT 双 token 鉴权（access 30min / refresh 7d）+ 固定窗口限流（20 req/min）
 - Alembic 数据库迁移 + Docker Compose 三服务容器化
 
@@ -90,5 +91,6 @@ cp backend/.env.example backend/.env
 - [架构设计](docs/architecture.md)
 - [API 设计](docs/api_design.md)
 - [技术蓝图](docs/roadmap.md)
+- [RAG 评测与工程化](docs/rag_eval.md)
 - [变更日志](docs/changelog.md)
 - [开发日志](docs/development_log.md)

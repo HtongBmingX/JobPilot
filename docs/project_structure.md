@@ -47,12 +47,18 @@ backend/
 │   │   └── conversation_summarizer.py  # LLM 增量摘要
 │   │
 │   ├── rag/
-│   │   ├── rag_pipeline.py      # RAG 统一入口
-│   │   ├── embedding.py         # 千问 text-embedding-v3（query/document 非对称）
+│   │   ├── rag_pipeline.py      # RAG 统一入口（三种检索模式 + 增量）
+│   │   ├── embedding.py         # 千问 text-embedding-v3（query/document 非对称 + 缓存）
 │   │   ├── vector_store.py      # 纯 Python 向量存储（余弦相似度 + JSON 持久化）
-│   │   ├── hybrid_searcher.py   # BM25 + 向量 + RRF 融合
+│   │   ├── hybrid_searcher.py   # BM25 + 向量 + RRF 融合（rrf_k 可配置）
+│   │   ├── chunker.py           # 分块器（整篇成块 / 滑动窗口 + 重叠）
+│   │   ├── reranker.py          # 重排器（接口 + 词面精排 + cross-encoder 预留）
 │   │   ├── knowledge_docs.py    # 知识库数据（23 篇 / 7 方向）
-│   │   └── build_knowledge_base.py  # 知识库构建脚本
+│   │   ├── build_knowledge_base.py  # 知识库构建脚本（分块 + 增量）
+│   │   └── eval/                # 检索质量评测
+│   │       ├── metrics.py       # Recall@k / Precision@k / MRR / NDCG@k
+│   │       ├── eval_cases.py    # 24 条带标注评测集（6 类）
+│   │       └── runner.py        # 评测执行器（三配置对比 + RRF 敏感性 + 逐题明细）
 │   │
 │   ├── models/                  # SQLAlchemy ORM
 │   │   ├── user.py              # 用户
@@ -93,7 +99,7 @@ backend/
 │       ├── deterministic_metrics.py  # 确定性指标（触发率/命中率/标注率）
 │       └── metrics/             # faithfulness/relevancy/recall（LLM 判定版）
 │
-└── tests/                       # 47 个测试
+└── tests/                       # 107 个断言式测试
     ├── test_agent_state.py      # 状态机路由 + 关键词检测
     ├── test_token_budget.py     # Token 预算 + 截断
     ├── test_session_memory_serialization.py  # 序列化 + 兼容
