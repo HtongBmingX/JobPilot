@@ -2,6 +2,31 @@
 
 ---
 
+## v0.9.4（RAG 检索质量评测 + 分块重排 + 拒答阈值 + 工程收口）
+
+> 日期：2026-08-29
+
+### ✨ RAG 收口
+- **真·检索质量评测**：新增 `rag/eval/`，Recall@k / Precision@k / MRR / NDCG@k 四个指标，24 条带标注评测集（6 类：直接命中/语义改写/精确关键词/近义干扰/多文档/知识库外负例）
+- **分块器**：`rag/chunker.py`，整篇成块 + 滑动窗口切块（chunk_size=500, overlap=50），当前 23 篇中 8 篇超长被切块（31 chunks）
+- **重排器**：`rag/reranker.py`，Reranker 接口 + KeywordReranker + CrossEncoderReranker 预留
+- **拒答阈值**：`RAG_SIMILARITY_THRESHOLD`，基于 top-1 向量余弦相似度，低于阈值返回「知识库外问题」
+- **管线增强**：embedding 缓存、增量索引、rrf_k 可配置
+
+### 🔧 LangChain 修复
+- `agent.py` 流式重写：删除字符串匹配工具结果、空转调用、多层 break，改为同步 invoke + 分片投递
+- `llm.py` 删除死代码 chat_sync / chat_stream
+
+### 🧪 测试补真
+- 后端测试从 47 → **107 个**（全部断言式 + mock 隔离，可复现）
+- 9 个 print 诊断脚本改为断言式，新增 test_langchain_agent、test_search_tool
+- requirements.txt 修复编码问题（UTF-16 → ASCII）
+
+### 🏗️ 工程收尾
+- 新增 LICENSE（MIT）+ GitHub Actions CI（push 跑 pytest，dummy key）
+
+---
+
 ## v0.9.3（前端整体改版 + 看板重构 + 功能收尾）
 
 > 日期：2026-08-14

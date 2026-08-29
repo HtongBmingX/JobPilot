@@ -179,11 +179,13 @@
 | 优先级 | 方向 | 说明 |
 |--------|------|------|
 | 🔴 | 云部署 | 轻量服务器 + Docker Compose + Nginx + HTTPS + 域名，拿公网 URL |
-| 🔴 | **测试补强** | 后端关键路径改断言式 pytest（Agent 循环/状态机/TokenBudget），前端核心 composable 加 vitest |
-| 🔴 | **CI 自动化** | GitHub Actions：push 自动跑测试 + lint + build（一个 yaml） |
+| ✅ | **测试补强** | 已完成：后端 47 → 107 个断言式测试（全部 mock 隔离，可复现），前端 18 个 vitest |
+| ✅ | **CI 自动化** | 已完成：GitHub Actions push 跑 pytest（dummy key，测试全 mock 不需要真 key）+ MIT LICENSE |
 | 🟡 | **可观测性** | 请求 trace id、LLM 调用耗时/费用结构化统计、错误告警 |
 | 🟡 | 上线前安全检查 | XSS 升级 DOMPurify、JWT secret 硬化、CORS 收紧 |
 | 🟡 | 文档定稿 | 统一 roadmap / changelog / development_log |
+
+> 补充（2026-08-29）：RAG 收口已完成（检索质量评测 + 分块 + 重排 + 拒答阈值 + embedding 缓存 + 增量索引），LangChain 流式已重写。详见 changelog v0.9.4。
 
 ### 暂缓 / 视情况
 

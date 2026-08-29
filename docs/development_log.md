@@ -1168,4 +1168,97 @@ Phase 4:
 - Phase 13：MCP 协议接入
 - Phase 15：上线收尾（云部署 + 安全 + npm audit fix）
 
+# Day 33：RAG 收口（真·检索评测 + 分块 + 重排 + 拒答阈值）
+
+> 日期：2026-08-25
+
+## 完成内容
+
+### 一、真·检索质量评测（替换掉「三个 100%」）
+
+- `rag/eval/metrics.py`：Recall@k / Precision@k / MRR / NDCG@k 四个指标纯函数
+- `rag/eval/eval_cases.py`：24 条带标注 ground truth 的评测集，分 6 类——direct（5）/ paraphrase（4）/ keyword（4）/ near_miss（4）/ multi（4）/ negative（3）
+- `rag/eval/runner.py`：评测执行器，对比三种检索配置（vector / hybrid / hybrid+rerank）+ RRF 参数敏感性 + 逐题明细导出（--detail / --out）
+
+关键认知：原来的「检索触发率/命中率/来源标注率 100%」测的是「工程可靠性」，不测「检索质量」。新的指标测「检索准不准」，且评测集故意设计了干扰项和负例。
+
+### 二、分块器（Chunker）
+
+`rag/chunker.py`：可配置 chunk_size/chunk_overlap。当前知识库 23 篇、每篇一个独立知识点，默认整篇成块；超长文档滑动窗口切块 + 重叠。构建日志「31/31 chunk」说明 8 篇超长文档被真实切块。
+
+### 三、重排器（Reranker）
+
+`rag/reranker.py`：Reranker 抽象接口 + KeywordReranker（词面精排，零依赖）+ CrossEncoderReranker（cross-encoder 预留接入点）。
+
+### 四、拒答阈值
+
+`config.py` 加 `RAG_SIMILARITY_THRESHOLD`（默认 0.0=关闭），`rag_pipeline.py` 加 `top1_vector_similarity()`，`search_tool.py` 检索前判断：top-1 余弦相似度低于阈值 → 返回「知识库外问题」。关键设计：阈值用余弦相似度（0~1），不用 RRF 排名分数（量纲不可比）。
+
+### 五、管线增强
+
+- embedding 缓存（内存 `(text, text_type) → 向量`）
+- 增量索引（内容未变跳过重建）
+- `hybrid_searcher` 的 rrf_k 可配置（敏感性实验用）
+
+## 真实评测结果（2026-08-29，DashScope embedding）
+
+| 配置 | recall@5 | precision@5 | mrr | ndcg@5 | 负例top1相似度 |
+|---|---|---|---|---|---|
+| vector | 100.0% | 28.9% | 97.6% | 98.2% | 0.374 |
+| hybrid | 100.0% | 27.4% | 100.0% | 99.2% | 0.374 |
+| hybrid+rerank | 97.6% | 23.1% | 91.7% | 91.6% | 0.374 |
+
+## 今日收获
+
+1. **指标饱和 ≠ 检索完美**：recall/MRR 满分恰恰说明评测集还不够难——知识库 23 篇主题干净分离，正确文档稳居 top-1。所以不写「MRR 100%」进简历。
+
+2. **最有信息量的是负结果**：hybrid+rerank 的 mrr 反而掉到 91.7%，因为 KeywordReranker 是词面精排，而 near_miss 题就是「词面指向错误文档」，词面精排会放大错误。结论：真正纠正近义干扰需要 cross-encoder 语义精排，接口已预留。
+
+3. **precision@5 只有 20-29% 是结构性低**：用例大多是单文档，单文档在 top-5 命中，precision 天然封顶 1/5=20%。所以不用它做主指标——「指标要理解它的前提」。
+
+4. **拒答阈值必须用余弦相似度，不能 RRF 分数**：RRF 是排名融合分、量纲不定、不能跨查询比较。
+
+# Day 34：LangChain 修复 + 测试补真 + CI/LICENSE
+
+> 日期：2026-08-29
+
+## 完成内容
+
+### 一、LangChain 流式重写
+
+- `langchain_agent/agent.py`：删掉字符串匹配工具结果（`"简历" in content`）、空转调用（`chat_stream("", "")`）、多层 break。改为「同步 invoke 拿完整结果 → 提取最终回答 → 分片投递」
+- 抽两个纯函数：`_extract_final_answer`（跳过 ToolMessage/HumanMessage/空 AIMessage）、`_chunk_text`
+- `langchain_agent/llm.py`：删死代码 chat_sync/chat_stream
+
+关键认知：LangChain 版是「分片投递」不是逐 token 真流式，因为 LangGraph 的 astream_events 在 FastAPI 同步端点有 async/sync 阻抗。手写版才是逐 token 真流式。
+
+### 二、测试补真（47 → 107）
+
+- 9 个 print 诊断脚本（test_llm_service / resume / jd / match / session_memory / memory_manager / plan / tools / planner / agent）全部改成断言式、mock 隔离
+- 修 test_agent_loop.py 的 `__main__` 引用了不存在的函数
+- 新增 test_langchain_agent.py（7 个）、test_search_tool.py（5 个）
+
+### 三、CI + LICENSE
+
+- LICENSE（MIT）
+- `.github/workflows/ci.yml`：push 到 main 自动跑 pytest，CI 用 dummy API key（测试全 mock，不需要真 key）
+- requirements.txt 修复编码问题（UTF-16 → 纯 ASCII，之前 pip 解析失败）
+
+### 四、本地环境修复
+
+本地 venv 缺 redis/pytest，一直靠 Docker。补全后 `python -m pytest tests/ -v` 全绿。
+
+## 今日收获
+
+1. **测试数字要经得起「你跑给我看」**：mock 隔离的测试在 CI 里用 dummy key 也能全绿，这才是可复现的标志。
+
+2. **本地 venv 残缺是隐藏坑**：一直用 Docker 开发，本地 venv 缺依赖没暴露。requirements.txt 编码问题（UTF-16）导致 pip 解析失败，是 pip 在 Windows 上 GBK 解码的老坑。
+
+3. **死代码是减分项**：chat_sync/chat_stream 定义但没人用，review 时一眼看到，删掉。
+
+## 下一步
+
+- Phase 13：MCP 协议接入
+- Phase 15：上线收尾（云部署 + 安全 + npm audit fix）
+
 

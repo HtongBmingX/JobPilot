@@ -46,5 +46,8 @@ rag_store.json
 evaluation_report.md
 rag_evaluation_report.md
 
+# 面试准备手册（个人面试笔记，含回答话术，不放公开仓库）
+docs/interview_prep.md
+
 # Cowork 会话记忆（个人工作记录，不含代码）
 .workbuddy/
