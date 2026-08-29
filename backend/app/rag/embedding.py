@@ -22,11 +22,26 @@ class EmbeddingService:
 
     def __init__(self):
         self._client = None
+        # embedding 缓存：避免相同文本反复调 API（尤其知识库构建时 title 重复、查询重复）
+        # key = (text, text_type)，value = 向量 list。内存缓存，重启清空。
+        self._cache: dict[tuple[str, str], list[float]] = {}
+        self._cache_hits = 0
+        self._cache_misses = 0
 
     @property
     def available(self) -> bool:
         """是否配置了 DashScope Key"""
         return bool(settings.DASHSCOPE_API_KEY)
+
+    @property
+    def cache_hits(self) -> int:
+        """缓存命中次数（评测/调优时可观察缓存收益）"""
+        return self._cache_hits
+
+    @property
+    def cache_misses(self) -> int:
+        """缓存未命中次数（未命中会实际调 API）"""
+        return self._cache_misses
 
     @property
     def client(self) -> OpenAI:
@@ -49,6 +64,12 @@ class EmbeddingService:
         if not self.available or not text or not text.strip():
             return None
 
+        cache_key = (text, text_type)
+        if cache_key in self._cache:
+            self._cache_hits += 1
+            return self._cache[cache_key]
+
+        self._cache_misses += 1
         try:
             resp = self.client.embeddings.create(
                 model=settings.EMBEDDING_MODEL,
@@ -57,7 +78,9 @@ class EmbeddingService:
                 encoding_format="float",
                 extra_body={"text_type": text_type},
             )
-            return resp.data[0].embedding
+            vec = resp.data[0].embedding
+            self._cache[cache_key] = vec
+            return vec
         except Exception as e:
             logger.warning(f"embedding 失败：{e}")
             return None

@@ -19,6 +19,14 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL: str = "text-embedding-v3"
     EMBEDDING_DIMENSIONS: int = 1024
 
+    # RAG 拒答阈值：检索结果 top-1 的向量余弦相似度低于此值时，视为「知识库外问题」，
+    # 返回「无相关内容」而非强行召回低相关文档。0.0 = 不启用（保持原行为）。
+    # 注意：阈值必须基于向量余弦相似度（0~1），不能基于 RRF 排名分数（量纲不同）。
+    # 校准方法：跑 python -m backend.app.rag.eval.runner --real，对比
+    # 「命中题 top1 相似度」和「负例 top1 相似度」（报告里的 negative_avg_top1_sim），
+    # 取两者之间的值。实测负例约 0.374，命中题远高于此。
+    RAG_SIMILARITY_THRESHOLD: float = 0.0
+
     # ↓ Stage 3 新增：LLM 调用健壮性配置（带默认值）
     LLM_TIMEOUT: float = 60.0      # 单次调用超时（秒）
     LLM_MAX_RETRIES: int = 3       # 失败重试次数

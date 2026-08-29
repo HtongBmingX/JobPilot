@@ -84,8 +84,9 @@ class HybridSearcher:
 
     RRF_K = 60
 
-    def __init__(self, vector_store):
+    def __init__(self, vector_store, rrf_k: int = 60):
         self.vector_store = vector_store
+        self.rrf_k = rrf_k  # RRF 的 k 参数，可配置（用于敏感性实验）
         self.bm25 = BM25()
         self._rebuild_bm25()
 
@@ -112,11 +113,11 @@ class HybridSearcher:
         rrf_scores: dict[str, float] = {}
         # 向量结果：rank 从 1 开始
         for rank, r in enumerate(vector_results, start=1):
-            rrf_scores[r["id"]] = rrf_scores.get(r["id"], 0) + 1 / (self.RRF_K + rank)
+            rrf_scores[r["id"]] = rrf_scores.get(r["id"], 0) + 1 / (self.rrf_k + rank)
         # BM25 结果
         for rank, (idx, _) in enumerate(bm25_results, start=1):
             doc_id = self._doc_id_map[idx]
-            rrf_scores[doc_id] = rrf_scores.get(doc_id, 0) + 1 / (self.RRF_K + rank)
+            rrf_scores[doc_id] = rrf_scores.get(doc_id, 0) + 1 / (self.rrf_k + rank)
 
         # 按 RRF 分数排序
         ranked_ids = sorted(rrf_scores.keys(), key=lambda x: rrf_scores[x], reverse=True)

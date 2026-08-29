@@ -82,6 +82,17 @@ class VectorStore:
         """返回所有文档（BM25 用）"""
         return [{"id": d["id"], "text": d["text"]} for d in self._docs]
 
+    def get_text(self, doc_id: str) -> str | None:
+        """按 id 取文档文本（增量更新时判断内容是否变化用）"""
+        for d in self._docs:
+            if d["id"] == doc_id:
+                return d["text"]
+        return None
+
+    def get_ids(self) -> set[str]:
+        """返回当前所有文档 id（增量更新时判断哪些已存在）"""
+        return {d["id"] for d in self._docs}
+
     def __len__(self) -> int:
         return len(self._docs)
 

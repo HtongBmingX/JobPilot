@@ -7,6 +7,7 @@ SearchTool — RAG 检索工具，让 Agent 能检索知识库。
 
 from backend.app.tools.base_tool import BaseTool
 from backend.app.rag.rag_pipeline import get_rag_pipeline
+from backend.app.core.config import settings
 from backend.app.core.logger import logger
 
 
@@ -23,6 +24,15 @@ class SearchTool(BaseTool):
         pipeline = get_rag_pipeline()
         if not pipeline.available:
             return "（知识库未配置，检索不可用）"
+
+        # 拒答：top-1 向量相似度低于阈值 → 判定为知识库外问题，不强行召回
+        # 阈值由 RAG_SIMILARITY_THRESHOLD 配置，默认 0.0（关闭），避免误伤
+        threshold = settings.RAG_SIMILARITY_THRESHOLD
+        if threshold > 0:
+            top1_sim = pipeline.top1_vector_similarity(query)
+            if top1_sim is not None and top1_sim < threshold:
+                logger.info(f"SearchTool 拒答：{query}（top1 相似度 {top1_sim:.3f} < 阈值 {threshold}）")
+                return "（知识库中没有找到相关内容，这个问题超出了知识库范围）"
 
         results = pipeline.search(query, top_k=5)
         if not results:
