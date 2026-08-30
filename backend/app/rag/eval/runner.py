@@ -130,11 +130,14 @@ def _dedupe(ids: list[str]) -> list[str]:
 
 
 def evaluate(pipeline: RAGPipeline, mode: str, top_k: int = 5) -> dict:
-    """对单种检索配置跑全部用例，返回各指标均值 + 负例行为。"""
+    """对单种检索配置跑全部用例，返回各指标均值 + 负例行为 + 按类别 recall。"""
     cases = get_eval_cases()
     per_metric: dict[str, list] = {name: [] for name in METRIC_FUNCS}
     neg_sims: list[float] = []
     neg_nonempty = 0
+    # 按类别统计 recall@1 和 mrr（区分「哪些题有区分度」——这两个才是
+    # 「正确文档排第几」的核心指标；recall@5 在少量文档下易饱和，不统计）
+    per_category: dict[str, dict] = {}
 
     for case in cases:
         results = pipeline.search(case["question"], top_k=top_k, mode=mode)
@@ -142,8 +145,14 @@ def evaluate(pipeline: RAGPipeline, mode: str, top_k: int = 5) -> dict:
         expected = [normalize_chunk_id(i) for i in case["expected_doc_ids"]]
 
         if expected:
+            r1 = recall_at_k(retrieved, expected, 1)
+            m = mrr(retrieved, expected)
             for name, fn in METRIC_FUNCS.items():
                 per_metric[name].append(fn(retrieved, expected))
+            cat = case.get("category", "other")
+            bucket = per_category.setdefault(cat, {"recall1": [], "mrr": []})
+            bucket["recall1"].append(r1 if r1 is not None else 0.0)
+            bucket["mrr"].append(m if m is not None else 0.0)
         else:
             # 负例：理想行为是「知识库没有相关内容」，不该强行召回。
             # 用 vector 模式取 top-1 的原始余弦相似度衡量「离知识库有多近」——越低越好。
@@ -155,14 +164,22 @@ def evaluate(pipeline: RAGPipeline, mode: str, top_k: int = 5) -> dict:
     agg = {name: aggregate(vals) for name, vals in per_metric.items()}
     agg["negative_avg_top1_sim"] = (sum(neg_sims) / len(neg_sims)) if neg_sims else 0.0
     agg["negative_retrieved_nonempty"] = neg_nonempty  # 负例里非空检索的条数
+    agg["by_category"] = {
+        cat: {
+            "recall1": round(sum(v["recall1"]) / len(v["recall1"]), 4) if v["recall1"] else 0.0,
+            "mrr": round(sum(v["mrr"]) / len(v["mrr"]), 4) if v["mrr"] else 0.0,
+        }
+        for cat, v in per_category.items()
+    }
     return agg
 
 
 def run(pipeline: RAGPipeline, top_k: int = 5) -> dict:
-    """跑三种配置 + k 敏感性，返回完整报告 dict。"""
+    """跑三种配置 + k 敏感性 + 拒答阈值校准，返回完整报告 dict。"""
     modes = ["vector", "hybrid", "hybrid+rerank"]
     report = {m: evaluate(pipeline, m, top_k) for m in modes}
     report["rrf_sensitivity"] = rrf_sensitivity(pipeline)
+    report["threshold_calibration"] = threshold_calibration(pipeline)
     report["top_k"] = top_k
     report["n_cases"] = len(get_eval_cases())
     return report
@@ -178,7 +195,7 @@ def rrf_sensitivity(pipeline: RAGPipeline, ks=(10, 30, 60, 100)) -> dict:
     out = {}
     for k in ks:
         searcher = HybridSearcher(pipeline.vector_store, rrf_k=k)
-        recalls, mrrs = [], []
+        recalls1, mrrs = [], []
         for case in non_neg:
             qv = pipeline.embedding.embed_query(case["question"])
             if qv is None:
@@ -186,11 +203,49 @@ def rrf_sensitivity(pipeline: RAGPipeline, ks=(10, 30, 60, 100)) -> dict:
             res = searcher.search(case["question"], qv, top_k=5)
             ids = _dedupe([normalize_chunk_id(r["id"]) for r in res])
             exp = [normalize_chunk_id(i) for i in case["expected_doc_ids"]]
-            recalls.append(recall_at_k(ids, exp, 5))
+            recalls1.append(recall_at_k(ids, exp, 1))
             mrrs.append(mrr(ids, exp))
         out[str(k)] = {
-            "recall@5": aggregate(recalls),
+            "recall@1": aggregate(recalls1),
             "mrr": aggregate(mrrs),
+        }
+    return out
+
+
+def threshold_calibration(pipeline: RAGPipeline, thresholds=(0.30, 0.35, 0.40, 0.45, 0.50)) -> dict:
+    """
+    拒答阈值校准：验证「阈值挡知识库外问题」这个设计决策。
+
+    方法：对正例（有 ground truth）和负例（知识库外）分别取 top-1 向量余弦相似度，
+    在不同阈值下统计：
+    - 误拒率：正例里相似度 < 阈值 的比例（真实问题被错误挡掉，越低越好）
+    - 漏挡率：负例里相似度 >= 阈值 的比例（知识库外问题被放进来，越低越好）
+
+    好的阈值在两者之间取平衡——误拒率和漏挡率都低，说明正负例的相似度分布分得开。
+    """
+    cases = get_eval_cases()
+    pos_sims, neg_sims = [], []
+    for case in cases:
+        sim = pipeline.top1_vector_similarity(case["question"])
+        if sim is None:
+            continue
+        if case["expected_doc_ids"]:
+            pos_sims.append(sim)
+        else:
+            neg_sims.append(sim)
+
+    if not pos_sims or not neg_sims:
+        return {}
+
+    out = {}
+    for t in thresholds:
+        # 误拒：正例 top1 相似度低于阈值 → 会被错误拒答
+        false_reject = sum(1 for s in pos_sims if s < t) / len(pos_sims)
+        # 漏挡：负例 top1 相似度不低于阈值 → 会被错误放行
+        false_pass = sum(1 for s in neg_sims if s >= t) / len(neg_sims)
+        out[str(t)] = {
+            "误拒率": round(false_reject, 4),
+            "漏挡率": round(false_pass, 4),
         }
     return out
 
@@ -205,7 +260,9 @@ def _pct(x: float) -> str:
 
 def print_report(report: dict) -> None:
     modes = ["vector", "hybrid", "hybrid+rerank"]
-    metric_names = ["recall@5", "precision@5", "mrr", "ndcg@5"]
+    # 主表指标：recall@1 和 mrr 是「正确文档排第几」的核心指标（区分度在这里）。
+    # 不放 recall@5（小文档库下易饱和、全是 100%，没有区分度），也不放 precision（结构性低）
+    metric_names = ["recall@1", "mrr", "ndcg@5"]
 
     print("\n" + "=" * 64)
     print(f"RAG 检索质量评测报告（top_k={report['top_k']}，共 {report['n_cases']} 条用例）")
@@ -221,23 +278,49 @@ def print_report(report: dict) -> None:
         print("| " + " | ".join(cells) + " |")
 
     print("\n说明：")
-    print("- recall@5 / precision@5 / mrr / ndcg@5 只在有 ground truth 的用例上平均；")
+    print("- recall@1 / mrr 是「正确文档排第几」的核心指标，区分度在这两个；")
     print("- 负例 top1 相似度越低越好（知识库外问题不该召回高相似文档）；")
-    print("- 期待趋势：hybrid ≥ vector（关键词题被 BM25 补上）。")
     print("- 注意：当前 KeywordReranker 是「词面精排」，在近义干扰题上可能让 mrr 变差——")
     print("  因为近义干扰题正是「词面指向错误文档」，词面精排会强化这个错误。")
     print("  真正纠正它需要 cross-encoder 语义精排。这是重排层「词面 vs 语义」的经典权衡。")
+
+    # 按类别 recall@1 + mrr（区分度视图：看「哪些题难」和「混合检索救回了哪些」）
+    categories = sorted({c for m in modes for c in report[m].get("by_category", {})})
+    if categories:
+        print("\n按类别 recall@1 / mrr（区分度视图）：")
+        print("| 类别 | " + " | ".join(f"{m}(r@1/mrr)" for m in modes) + " |")
+        print("|---|" + "---|" * len(modes))
+        for cat in categories:
+            cells = []
+            for m in modes:
+                b = report[m].get("by_category", {}).get(cat, {})
+                cells.append(f"{_pct(b.get('recall1', 0.0))}/{_pct(b.get('mrr', 0.0))}")
+            print("| " + cat + " | " + " | ".join(cells) + " |")
+        print("→ recall@1 / mrr 是「正确文档排第几」的核心指标，区分度在这里；")
+        print("  hybrid 的 recall@1/mrr 超过 vector，才是「混合检索有价值」的真实证据。")
 
     # RRF 敏感性
     sens = report.get("rrf_sensitivity", {})
     if sens:
         print("\nRRF 参数敏感性（hybrid 模式，换 k）：")
-        print("| k | recall@5 | mrr |")
+        print("| k | recall@1 | mrr |")
         print("|---|---|---|")
         for k in ["10", "30", "60", "100"]:
             if k in sens:
-                print(f"| {k} | {_pct(sens[k]['recall@5'])} | {_pct(sens[k]['mrr'])} |")
+                print(f"| {k} | {_pct(sens[k]['recall@1'])} | {_pct(sens[k]['mrr'])} |")
         print("→ 若各 k 分数接近，说明 k=60 稳健、不是拍脑袋；若差异大，说明需要调参。")
+
+    # 拒答阈值校准
+    calib = report.get("threshold_calibration", {})
+    if calib:
+        print("\n拒答阈值校准（不同阈值下的误拒率/漏挡率）：")
+        print("| 阈值 | 误拒率(正例被挡) | 漏挡率(负例被放行) |")
+        print("|---|---|---|")
+        for t in sorted(calib.keys(), key=lambda x: float(x)):
+            c = calib[t]
+            print(f"| {t} | {_pct(c['误拒率'])} | {_pct(c['漏挡率'])} |")
+        print("→ 误拒率=真实问题被错误拒绝的比例，漏挡率=知识库外问题被错误放行的比例，都要低；")
+        print("  理想情况正负例相似度分布分得开，能找到一个阈值让两者都接近 0。")
 
 
 def per_case_detail(pipeline: RAGPipeline, top_k: int = 5) -> list[dict]:

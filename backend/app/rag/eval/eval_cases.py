@@ -245,7 +245,288 @@ EVAL_CASES = [
         "key_points": [],
         "note": "时效性问题，知识库没有也不该编",
     },
+
+    # ============================================================
+    #  【区分度扩展】针对扩语料后新增的难题
+    #  目的：制造「词面强烈指向错误文档」的场景，让 baseline 犯错，
+    #        只有混合检索/精排/精确区分才能答对。
+    # ============================================================
+
+    # ---------- 7. near_miss_hard —— 主题重叠后的硬干扰题（词面全指向错误文档） ----------
+    {
+        "id": "near_hard_001",
+        "category": "near_miss_hard",
+        "question": "Redis 的事务执行到一半失败了，会自动回滚吗？",
+        "expected_doc_ids": ["backend_redis_transaction"],
+        "key_points": ["不回滚", "MULTI/EXEC", "Lua 脚本原子"],
+        "note": "词面 Redis 会吸引锁/集群/淘汰多篇，答案在「事务」篇",
+    },
+    {
+        "id": "near_hard_002",
+        "category": "near_miss_hard",
+        "question": "MySQL 的索引失效会让锁发生什么变化？",
+        "expected_doc_ids": ["backend_mysql_lock"],
+        "key_points": ["行锁", "索引", "锁升级", "表锁"],
+        "note": "词面「索引」强烈指向 backend_db_index，答案在「锁」篇",
+    },
+    {
+        "id": "near_hard_003",
+        "category": "near_miss_hard",
+        "question": "Redis 内存满了写不进去，要淘汰 key，用哪个参数配置？",
+        "expected_doc_ids": ["backend_redis_eviction"],
+        "key_points": ["maxmemory", "淘汰策略", "lru/lfu"],
+        "note": "词面 Redis 有多篇干扰，答案在「淘汰」篇，非锁非集群",
+    },
+    {
+        "id": "near_hard_004",
+        "category": "near_miss_hard",
+        "question": "Agent 的「长期记忆」用什么方案持久化、为什么不能只靠对话上下文？",
+        "expected_doc_ids": ["agent_memory"],
+        "key_points": ["SQLite", "跨会话", "时间尺度", "对话记忆"],
+        "note": "词面「记忆」会吸引 RAG/LLM工程化等多篇，答案在「记忆机制」篇",
+    },
+    {
+        "id": "near_hard_005",
+        "category": "near_miss_hard",
+        "question": "redo log 和 binlog 分别记什么，主从复制用的是哪个？",
+        "expected_doc_ids": ["backend_mysql_binlog_redo"],
+        "key_points": ["redo log", "binlog", "两阶段提交", "主从复制"],
+        "note": "词面 MySQL 日志，答案在「binlog/redo」篇，非索引非隔离",
+    },
+    {
+        "id": "near_hard_006",
+        "category": "near_miss_hard",
+        "question": "Redis 的哨兵模式解决了主从复制的什么问题？",
+        "expected_doc_ids": ["backend_redis_cluster"],
+        "key_points": ["哨兵", "自动故障转移", "主从复制", "脑裂"],
+        "note": "词面「主从复制」在集群篇，但锁/事务篇也提 Redis，易漂",
+    },
+
+    # ---------- 8. para_hard —— 极致语义改写（纯 BM25 必漏） ----------
+    {
+        "id": "para_hard_001",
+        "category": "paraphrase_hard",
+        "question": "Redis 加锁之后，如果业务还没跑完、锁就自动过期了，怎么防止别的线程提前拿到锁？",
+        "expected_doc_ids": ["backend_redis_distributed_lock"],
+        "key_points": ["看门狗", "续期", "锁过期", "Redisson"],
+        "note": "全文没出现「看门狗」「续期」原词，靠语义识别",
+    },
+    {
+        "id": "para_hard_002",
+        "category": "paraphrase_hard",
+        "question": "一个事务里读同一行数据，两次读到的值不一样，这种问题叫什么、什么隔离级别能解决？",
+        "expected_doc_ids": ["backend_mysql_isolation"],
+        "key_points": ["不可重复读", "可重复读", "隔离级别"],
+        "note": "问「不可重复读」但没直呼其名，靠语义",
+    },
+    {
+        "id": "para_hard_003",
+        "category": "paraphrase_hard",
+        "question": "给一个任务先让模型写出完整步骤清单，再一步步执行，这种和 ReAct 不同的做法叫什么？",
+        "expected_doc_ids": ["agent_planning"],
+        "key_points": ["Plan-and-Execute", "Planner", "Executor", "规划"],
+        "note": "问 Plan-and-Execute 但没直呼其名，ReAct 是干扰",
+    },
+    {
+        "id": "para_hard_004",
+        "category": "paraphrase_hard",
+        "question": "Python 里一段「读变量、判断、写变量」的代码，为什么在多线程下还是会出错，即使有 GIL？",
+        "expected_doc_ids": ["backend_concurrency_safe"],
+        "key_points": ["竞态条件", "非原子", "锁", "GIL"],
+        "note": "词面 GIL 会漂到 backend_os_process，答案在「线程安全」篇",
+    },
+
+    # ---------- 9. multi_hard —— 跨主题多文档（k>1 才够） ----------
+    {
+        "id": "multi_hard_001",
+        "category": "multi_hard",
+        "question": "Redis 和 MySQL 都用「日志」来保证数据安全，它们各自的日志分别叫什么、作用有什么不同？",
+        "expected_doc_ids": ["backend_redis_persistence", "backend_mysql_binlog_redo"],
+        "key_points": ["AOF/RDB", "redo log", "binlog", "持久化"],
+        "note": "跨 Redis 和 MySQL 两篇，单篇召回不够",
+    },
+    {
+        "id": "multi_hard_002",
+        "category": "multi_hard",
+        "question": "Agent 既需要「记得对话历史」，又需要「规划任务步骤」，这两件事分别对应什么机制？",
+        "expected_doc_ids": ["agent_memory", "agent_planning"],
+        "key_points": ["记忆分层", "Planner", "Executor", "规划范式"],
+        "note": "跨「记忆」和「规划」两篇，主题相近易漂",
+    },
+
+    # ============================================================
+    #  【第一批扩量】针对新增的 LLM/后端/算法/安全文档
+    # ============================================================
+
+    # ---------- 10. direct_ext —— 新增文档的直接命中题（基线） ----------
+    {
+        "id": "direct_006",
+        "category": "near_miss_hard",
+        "question": "LoRA 微调的原理是什么？",
+        "expected_doc_ids": ["llm_finetune"],
+        "key_points": ["低秩矩阵", "PEFT", "冻结权重"],
+        "note": "词面「微调」在 RAG/LLM工程化多篇也出现，实为 near_miss，非纯 direct",
+    },
+    {
+        "id": "direct_007",
+        "category": "direct",
+        "question": "KV Cache 的作用是什么？",
+        "expected_doc_ids": ["llm_inference_opt"],
+        "key_points": ["缓存 K/V", "减少重复计算", "显存"],
+        "note": "KV Cache 专有名词，直接命中",
+    },
+    {
+        "id": "direct_008",
+        "category": "direct",
+        "question": "XSS 和 CSRF 分别是什么攻击？",
+        "expected_doc_ids": ["security_web"],
+        "key_points": ["跨站脚本", "跨站请求伪造", "防御"],
+        "note": "XSS/CSRF 专有缩写",
+    },
+    {
+        "id": "direct_009",
+        "category": "near_miss_hard",
+        "question": "快速排序的时间复杂度是多少？",
+        "expected_doc_ids": ["algo_sort"],
+        "key_points": ["O(nlogn)", "最坏 O(n^2)", "pivot"],
+        "note": "词面「时间复杂度」是 algo_complexity 的主题词，实为 near_miss，非纯 direct",
+    },
+
+    # ---------- 11. near_miss_hard_ext —— 新主题的词面干扰题 ----------
+    {
+        "id": "near_hard_007",
+        "category": "near_miss_hard",
+        "question": "微调一个模型时，想不更新原参数、只训练旁路的小矩阵，这个技术叫什么？",
+        "expected_doc_ids": ["llm_finetune"],
+        "key_points": ["LoRA", "低秩", "旁路"],
+        "note": "词面「微调」会吸引 RAG/提示工程多篇，答案在「微调」篇",
+    },
+    {
+        "id": "near_hard_008",
+        "category": "near_miss_hard",
+        "question": "生成式模型推理时，把之前算过的 K、V 向量存起来复用，是为了解决什么？",
+        "expected_doc_ids": ["llm_inference_opt"],
+        "key_points": ["KV Cache", "重复计算", "显存"],
+        "note": "词面「生成/推理」会吸引注意力/提示工程，答案在「推理优化」篇",
+    },
+    {
+        "id": "near_hard_009",
+        "category": "near_miss_hard",
+        "question": "有人在你登录状态下诱导你点击链接，用你的身份发请求，这种攻击怎么防？",
+        "expected_doc_ids": ["security_web"],
+        "key_points": ["CSRF", "Token", "SameSite"],
+        "note": "词面「攻击/登录」会吸引认证篇，答案在「Web安全」篇的 CSRF",
+    },
+    {
+        "id": "near_hard_010",
+        "category": "near_miss_hard",
+        "question": "用「递归分成两半再合并」的排序算法，稳定性和空间复杂度怎么样？",
+        "expected_doc_ids": ["algo_sort"],
+        "key_points": ["归并排序", "稳定", "O(n) 空间"],
+        "note": "词面「排序」在算法篇，但树/图篇也有复杂度讨论，易漂",
+    },
+    {
+        "id": "near_hard_011",
+        "category": "near_miss_hard",
+        "question": "给消息中间件发消息后，怎么保证消息不丢？",
+        "expected_doc_ids": ["backend_mq"],
+        "key_points": ["生产确认", "持久化", "消费确认"],
+        "note": "词面「消息」可能漂到网络/TCP 篇，答案在「消息队列」篇",
+    },
+    {
+        "id": "near_hard_012",
+        "category": "near_miss_hard",
+        "question": "HTTP 的 PUT 和 PATCH 在语义和幂等性上有什么区别？",
+        "expected_doc_ids": ["backend_http_status"],
+        "key_points": ["整体替换", "部分更新", "幂等"],
+        "note": "词面「HTTP」会吸引网络/TCP 篇，答案在「HTTP状态码」篇",
+    },
+
+    # ---------- 12. para_hard_ext —— 新主题的语义改写题 ----------
+    {
+        "id": "para_hard_005",
+        "category": "paraphrase_hard",
+        "question": "让模型在回答问题前，先把中间推理过程一步步写出来，这种技巧为什么能提升正确率？",
+        "expected_doc_ids": ["llm_prompting"],
+        "key_points": ["CoT", "思维链", "逐步推理"],
+        "note": "问 CoT 但没直呼其名",
+    },
+    {
+        "id": "para_hard_006",
+        "category": "paraphrase_hard",
+        "question": "怎么防止模型调用一个根本不存在的工具？",
+        "expected_doc_ids": ["agent_tool_calling"],
+        "key_points": ["白名单", "校验", "约束生成"],
+        "note": "问工具调用但没直呼 function calling",
+    },
+    {
+        "id": "para_hard_007",
+        "category": "paraphrase_hard",
+        "question": "高并发秒杀时，怎么把突然涌入的请求先缓冲起来，让系统按自己的能力慢慢处理？",
+        "expected_doc_ids": ["backend_mq"],
+        "key_points": ["削峰", "消息队列", "异步"],
+        "note": "问削峰但没直呼消息队列",
+    },
+    {
+        "id": "para_hard_008",
+        "category": "paraphrase_hard",
+        "question": "把 32 位浮点数的模型权重存成 8 位整数，为了省显存，这个做法叫什么？",
+        "expected_doc_ids": ["llm_inference_opt"],
+        "key_points": ["量化", "INT8", "显存"],
+        "note": "问量化但没直呼其名",
+    },
+    {
+        "id": "para_hard_009",
+        "category": "paraphrase_hard",
+        "question": "一个主控制器把大任务拆成几块，分给不同的专职模块去做，最后汇总，这种 Agent 架构叫什么？",
+        "expected_doc_ids": ["agent_multi_agent"],
+        "key_points": ["Orchestrator", "Worker", "多智能体"],
+        "note": "问 Orchestrator-Worker 但没直呼其名",
+    },
+    {
+        "id": "para_hard_010",
+        "category": "paraphrase_hard",
+        "question": "发请求时不用 session 而用带签名的令牌，服务端只验签不查库，这种方案的优势和代价是什么？",
+        "expected_doc_ids": ["security_auth"],
+        "key_points": ["JWT", "无状态", "无法主动吊销"],
+        "note": "问 JWT 但没直呼其名",
+    },
+
+    # ---------- 13. multi_hard_ext —— 跨主题多文档 ----------
+    {
+        "id": "multi_hard_003",
+        "category": "multi_hard",
+        "question": "「缓存」在后端和「缓存」在 LLM 推理里分别是解决什么问题的？",
+        "expected_doc_ids": ["backend_cache_pattern", "llm_inference_opt"],
+        "key_points": ["缓存一致性", "KV Cache", "加速"],
+        "note": "跨后端缓存和 LLM 推理优化两篇",
+    },
+    {
+        "id": "multi_hard_004",
+        "category": "multi_hard",
+        "question": "「微调」和「RAG」都能让模型获得知识，两者的适用场景和取舍是什么？",
+        "expected_doc_ids": ["llm_finetune", "agent_rag"],
+        "key_points": ["微调", "RAG", "知识更新", "成本"],
+        "note": "跨微调和 RAG 两篇",
+    },
+    {
+        "id": "multi_hard_005",
+        "category": "multi_hard",
+        "question": "「认证」和「Web 攻击防御」都涉及安全，JWT 和 CSRF 分别解决什么？",
+        "expected_doc_ids": ["security_auth", "security_web"],
+        "key_points": ["JWT", "CSRF", "认证", "跨站"],
+        "note": "跨认证和 Web 安全两篇",
+    },
+    {
+        "id": "multi_hard_006",
+        "category": "multi_hard",
+        "question": "「图的最短路径」和「树的遍历」在算法面试里各有什么经典题？",
+        "expected_doc_ids": ["algo_graph", "algo_tree"],
+        "key_points": ["Dijkstra", "拓扑排序", "前中后序"],
+        "note": "跨图和树两篇",
+    },
 ]
+
 
 
 def get_eval_cases() -> list[dict]:

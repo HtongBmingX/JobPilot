@@ -137,10 +137,28 @@ def aggregate(values: Sequence[float | None], default: float = 0.0) -> float:
     return sum(valid) / len(valid)
 
 
+def hit_rate_at_k(retrieved: Sequence[str], expected: Sequence[str], k: int) -> float | None:
+    """
+    Hit Rate@k：top-k 里是否至少有一个正确文档。
+
+    是「二值」指标（命中=1，未命中=0），和 recall@k 的区别：
+    recall 关心「召回了几分之几」，hit rate 只关心「有没有召回至少一个」。
+    单文档 ground truth 下两者等价；多文档 ground truth 下 hit rate 更宽松。
+
+    :return: 1.0 或 0.0；expected 为空返回 None
+    """
+    if not expected:
+        return None
+    got = set(_norm_ids(retrieved[:k]))
+    want = set(str(x) for x in expected)
+    return 1.0 if (got & want) else 0.0
+
+
 # 所有对外暴露的指标名，供 eval_runner 反射调用
 METRIC_FUNCS = {
     "recall@5": lambda r, e: recall_at_k(r, e, 5),
-    "recall@3": lambda r, e: recall_at_k(r, e, 3),
+    "recall@1": lambda r, e: recall_at_k(r, e, 1),
+    "hit_rate@5": lambda r, e: hit_rate_at_k(r, e, 5),
     "precision@5": lambda r, e: precision_at_k(r, e, 5),
     "mrr": mrr,
     "ndcg@5": lambda r, e: ndcg_at_k(r, e, 5),
