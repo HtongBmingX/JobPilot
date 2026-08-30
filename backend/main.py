@@ -67,6 +67,21 @@ registry.register(JDTool())
 registry.register(MatchTool())
 registry.register(InterviewTool())
 registry.register(SearchTool())
+
+# MCP 外部工具 — 懒加载注册（未配置 GITHUB_PAT 时静默跳过，不影响主流程）
+# 把 GitHub MCP Server 的工具包装成 BaseTool，Planner 像调本地工具一样调它们
+def _register_mcp_tools():
+    """连接 MCP Server 并把外部工具注册进 ToolRegistry（惰性调用）"""
+    try:
+        from backend.app.mcp.client import build_mcp_tools
+        for tool in build_mcp_tools():
+            registry.register(tool)
+            logger.info(f"MCP 工具已注册：{tool.name}")
+    except Exception as e:
+        logger.warning(f"MCP 工具注册跳过：{e}")
+
+_register_mcp_tools()
+
 agent = JobPilotAgent(registry)
 
 # 让所有 Tool 的 Service 共享 agent 的 LLMService 实例

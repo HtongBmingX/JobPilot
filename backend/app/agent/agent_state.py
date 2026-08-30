@@ -235,3 +235,26 @@ def _query_mentions_knowledge(query: str) -> bool:
     ]
     query_lower = query.lower()
     return any(kw in query_lower for kw in keywords)
+
+
+def _query_mentions_external(query: str) -> bool:
+    """
+    判断用户 query 是否在请求「外部实时信息」（需要 MCP 外部工具，而非本地 RAG）。
+
+    覆盖：
+    1. 公司/开源项目信息（"XX 公司的技术栈""XX 的开源项目""面试官的 repo"）
+    2. 实时/时效性信息（"最新""最近""现在"）
+
+    设计意图：和 _query_mentions_knowledge 形成「本地知识库 vs 外部工具」的分层——
+    知识库能答的走 search（快、零成本、可溯源），知识库答不了、需要实时或外部
+    数据源的走 MCP 外部工具（GitHub 等）。这是 RAG + Web/外部工具的混合检索权衡。
+    """
+    keywords = [
+        # 公司/开源项目信息
+        "开源项目", "github", "repo", "仓库", "技术栈", "公司用了",
+        "公司的项目", "面试官的项目", "这个项目",
+        # 实时/时效性
+        "最新", "最近", "现在", "今年的",
+    ]
+    query_lower = query.lower()
+    return any(kw in query_lower for kw in keywords)

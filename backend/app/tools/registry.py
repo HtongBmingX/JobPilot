@@ -51,6 +51,18 @@ class ToolRegistry:
 
         return list(self._tools.keys())
 
+    def list_external_tools(self) -> list[str]:
+        """
+        返回所有「外部工具」（如 MCP 工具）的名称。
+
+        外部工具通过 is_external 标记区分，Agent 状态机据此做
+        「本地工具 vs 外部工具」的分层路由。
+        """
+        return [
+            name for name, tool in self._tools.items()
+            if getattr(tool, "is_external", False)
+        ]
+
     def exists(self, name: str) -> bool:
         return name in self._tools
 

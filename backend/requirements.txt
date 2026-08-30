@@ -51,3 +51,6 @@ alembic>=1.13
 
 # Testing
 pytest>=8.0
+
+# MCP Client (Phase 13 - external tool protocol)
+mcp>=1.0.0

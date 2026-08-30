@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     LLM_TIMEOUT: float = 60.0      # 单次调用超时（秒）
     LLM_MAX_RETRIES: int = 3       # 失败重试次数
 
+    # MCP（Model Context Protocol）配置——GitHub Server 用（只读 PAT 即可）
+    # 为空时 MCP 不可用，Agent 正常降级（和 RAG 未配置 DashScope key 一致）
+    GITHUB_PAT: str = ""
+
     # Redis 配置（带默认值，可被环境变量覆盖）
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
