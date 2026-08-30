@@ -1261,4 +1261,52 @@ Phase 4:
 - Phase 13：MCP 协议接入
 - Phase 15：上线收尾（云部署 + 安全 + npm audit fix）
 
+# Day 35：RAG 扩量评测 + MCP Client 接入
+
+> 日期：2026-08-30
+
+## 完成内容
+
+### 一、RAG 评测扩量（57 篇语料 / 56 条评测集）
+
+- 知识库 36 → 57 篇：新增 LLM 基础（注意力/微调/推理优化/提示工程）、Agent 深入（工具调用/多智能体）、后端基础（HTTP/缓存/消息队列/网络）、算法（排序/树/图）、安全（Web 安全/认证）
+- 评测集 36 → 56 条：新增 direct_ext、near_miss_hard_ext、para_hard_ext、multi_hard_ext
+- 指标重构：主表从 recall@5（小库下饱和）换成 **recall@1 + MRR + NDCG**；RRF 敏感性表同步换 recall@1
+- 拒答阈值校准：正负例 top-1 相似度分布在 0.40 处干净分离（误拒率 0%、漏挡率 0%）
+
+### 二、真实评测结果（2026-08-30）
+
+| 指标 | 纯向量 | 混合检索 |
+|------|--------|---------|
+| recall@1 | 76.4% | **82.1%** |
+| MRR | 92.1% | **95.3%** |
+| paraphrase_hard（语义改写难题） | 60.0% | **90.0%** |
+
+### 三、MCP Client 接入（GitHub Server）
+
+- `mcp/client.py`：`MCPToolAdapter`（MCP 工具 → BaseTool）+ `MCPClientManager`（stdio 连 GitHub Server）+ `build_mcp_tools()`
+- **只读白名单**：GitHub Server 暴露 26 个工具，其中 12 个写操作（create/push/fork/merge）被过滤，只注册 14 个只读工具——不把写能力交给 LLM 决策
+- async/sync 桥接：mcp SDK 是 asyncio，uvicorn 里不能直接 asyncio.run，用「独立线程 + 独立事件循环」避开嵌套事件循环报错
+- 状态机加 `_query_mentions_external()` 外部意图检测，registry 加 `list_external_tools()`
+- 端到端验证：本地配 GitHub PAT + Node.js，成功注册 14 个只读工具
+
+### 四、测试补强（107 → 115）
+
+- 新增 test_mcp_client.py（8 个：适配器桥接、失败降级、只读白名单、参数提取、外部意图）
+
+## 今日收获
+
+1. **recall@5 在小库下饱和，是"伪指标"**：57 篇语料下 top-5 几乎必中，全是 100%。换 recall@1/MRR 才体现「正确文档排第几」的区分度——用户问一个问题，正确文档排第一还是第三，决定 LLM 优先采信谁。
+
+2. **评测集最难的是"题要逼出区分度"**：直接命中题全 100% 没有价值，真正的价值在 paraphrase_hard（纯向量 60%、混合检索 90%）这类难题上。扩语料制造主题重叠是前提——同主题多篇词面接近的文档，检索才需要精确区分。
+
+3. **写工具绝不能交给 LLM**：GitHub MCP 暴露了 create_repository、push_files 这类写操作。即使 PAT 只读，也不该把写工具喂进 Planner 的 prompt——这是最小权限原则，也是 Agent 安全的基本素养。
+
+4. **asyncio.run 在 uvicorn 里会炸**：`cannot be called from a running event loop`。同步函数在异步环境里跑异步代码，要用「独立线程 + 独立事件循环」。这和 LangChain astream_events 的阻抗是同一类问题。
+
+## 下一步
+
+- 端到端演示（前端问"MCP 查仓库"真实问题）
+- Phase 15：上线收尾（云部署 + 安全 + npm audit fix）
+
 

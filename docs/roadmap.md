@@ -151,24 +151,23 @@
 
 > 说明：这一段的四类工作——RAG（知识库检索）、记忆增强（用户画像 + 上下文压缩）、产品补全（简历库）、工程基础（Alembic）——共用同一套 embedding/向量基础设施和 SQLite/Repository 模式，因此并列推进。其中 **Alembic 必须在加 UserProfile/Resume 表之前引入**，避免上线后改 schema 无法迁移。
 
-### 第三段 · MCP 协议接入（1-2 周）
+### 第三段 · MCP 协议接入（1-2 周）✅ 已完成（2026-08-30）
 
 > 方向已定：**先做 MCP Client（让 Agent 调外部工具），MCP Server（暴露自身能力）待定**。
 
 | 优先级 | 方向 | 说明 |
 |--------|------|------|
-| 🔴 | MCP Client 基础设施 | 用 `mcp` SDK 连 MCP Server，把外部工具动态包装成 BaseTool 注册进 ToolRegistry |
-| 🔴 | 接入 GitHub MCP Server | 官方 `@modelcontextprotocol/server-github`（stdio 方式），需 GitHub Personal Access Token（只读即可）。让 Agent 能查目标公司技术栈、面试官开源项目 |
-| 🔴 | 接入搜索 MCP Server（Tavily） | 补 RAG 的知识盲区，回答时效性问题（秋招动态、公司近况）。需 Tavily API key（有免费额度） |
-| 🔴 | 本地/联网分层路由 | 状态机区分：问知识库类 → 本地 RAG（SearchTool）；问时效性/外部信息 → 联网搜索。体现"RAG + Web Search 混合检索"的权衡 |
-| 🟡 | 状态机加外部工具路由 | 检测"XX公司技术栈""面试官项目"→ GitHub 工具；"最新秋招情况"→ 搜索工具 |
+| ✅ | MCP Client 基础设施 | 用 `mcp` SDK 连 MCP Server，把外部工具动态包装成 BaseTool 注册进 ToolRegistry |
+| ✅ | 接入 GitHub MCP Server | 官方 `@modelcontextprotocol/server-github`（stdio 方式），GitHub PAT 只读。已注册 14 个只读工具 |
+| ✅ | 只读白名单安全过滤 | 26 个工具中过滤 12 个写操作（create/push/fork/merge），不把写能力交给 LLM |
+| ✅ | 状态机外部工具路由 | `_query_mentions_external` 检测「查公司/开源项目/实时信息」→ 外部工具 |
+| 🟡 | 接入搜索 MCP Server（Tavily） | 补 RAG 的知识盲区，回答时效性问题（秋招动态、公司近况）。需 Tavily API key（有免费额度），暂缓 |
 
 **设计要点（面试可讲）**：
 - 叙事线：手写 BaseTool → LangChain @tool → MCP Client，体现对工具调用演进的完整理解
-- 两个知识来源的分层：本地 RAG（快、零成本、可溯源但有限）vs 联网搜索（时效强但成本高、质量参差），本地优先、联网兜底
+- 两个知识来源的分层：本地 RAG（快、零成本、可溯源但有限）vs 外部工具（GitHub 实时数据），本地优先、外部兜底
 - MCP 解决的本质问题：工具碎片化的 N×M 适配问题（每个工具×每个 Agent 都要单独写适配，MCP 统一成 N+M）
-
-**⚠️ 前置确认**：GitHub 连通性已确认 OK。开工前需准备：GitHub PAT（只读）、Tavily API key。
+- 安全：只读白名单，写工具不注册——最小权限原则
 
 ### ~~第三.五段 · LangGraph 手写图版~~（已决定不做）
 

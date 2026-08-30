@@ -2,13 +2,14 @@
 
 AI 驱动的求职助手——从零手写 ReAct Agent，覆盖简历分析、JD 解析、人岗匹配、模拟面试、知识库问答、投递看板全流程。
 
-> 当前版本：**v0.9.3**
+> 当前版本：**v0.9.5**
 
 ## Tech Stack
 
 - **后端**：Python 3.11 / FastAPI / SQLAlchemy / Redis / Alembic
 - **AI Agent**：手写 ReAct Agent（Planner + 代码状态机 + Tool + Memory）+ LangChain 双版本并行
-- **RAG**：通义千问 text-embedding-v3 + BM25 + RRF 混合检索
+- **RAG**：通义千问 text-embedding-v3 + BM25 + RRF 混合检索 + 分块/重排分层 + 拒答阈值
+- **MCP**：接入 GitHub MCP Client（只读白名单），外部工具与本地 RAG 分层
 - **前端**：Vue 3（Vite + Composition API）
 - **文档解析**：PyMuPDF（PDF）+ python-docx（DOCX）
 - **流式输出**：Server-Sent Events (SSE)
@@ -20,8 +21,9 @@ AI 驱动的求职助手——从零手写 ReAct Agent，覆盖简历分析、JD
 
 - **手写 ReAct Agent**：从零实现 Reason→Act→Observe 循环，不依赖 LangChain；代码状态机（AgentStateMachine）确定性控制 Agent 决策，LLM 仅做语义选择
 - **LangChain 版并行**：ChatOpenAI + @tool + create_react_agent，与手写版同输入同输出对比
+- **MCP Client**：接入 GitHub MCP Server，动态包装为 BaseTool 注册进 ToolRegistry；只读白名单过滤写操作工具
 - **三层记忆**：Redis 会话记忆（24h TTL + 优雅降级）+ SQLite 用户画像（跨会话持久化）+ LLM 摘要压缩（长对话失忆解决）
-- **RAG 检索管线**：Embedding + 纯 Python 向量存储 + BM25，RRF 融合；23 篇覆盖 7 个岗位方向的知识库；来源标注代码强制（可溯源）
+- **RAG 检索管线**：Embedding + 纯 Python 向量存储 + BM25，RRF 融合；57 篇知识库；来源标注代码强制（可溯源）；分块/重排分层 + 拒答阈值
 
 ### 产品功能
 
@@ -35,10 +37,10 @@ AI 驱动的求职助手——从零手写 ReAct Agent，覆盖简历分析、JD
 
 ### 工程质量
 
-- 107 个后端 pytest + 18 个前端 vitest（覆盖状态机路由、TokenBudget、RAG 检索、Agent 容错、内存会话）
-- 自建 24 条带标注 RAG 评测集（Recall@k / MRR / NDCG 对比三种检索配置，见 docs/rag_eval.md）
+- 115 个后端 pytest + 18 个前端 vitest（覆盖状态机路由、TokenBudget、RAG 检索、MCP 适配、Agent 容错）
+- 自建 56 条多类别带标注 RAG 评测集（recall@1 / MRR / NDCG 对比三种检索配置，见 docs/rag_eval.md）
 - JWT 双 token 鉴权（access 30min / refresh 7d）+ 固定窗口限流（20 req/min）
-- Alembic 数据库迁移 + Docker Compose 三服务容器化
+- Alembic 数据库迁移 + Docker Compose 三服务容器化 + GitHub Actions CI
 
 ## Quick Start
 
@@ -64,6 +66,7 @@ npm run dev -- --port 5199
 ```bash
 cp backend/.env.example backend/.env
 # 编辑 backend/.env，填入 DeepSeek API Key 和 DashScope API Key
+# 可选：填入 GITHUB_PAT 启用 MCP（GitHub 工具，只读 PAT 即可）
 ```
 
 ## API Endpoints
